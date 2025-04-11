@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>IM Chatbot</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Raleway:wght@400&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #eef2f5;
+        }
+
+        #chatbox {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            background: #fff;
+            margin-bottom: 10px;
+        }
+
+        .message {
+            margin: 5px 0;
+        }
+
+        .user {
+            color: blue;
+        }
+
+        .bot {
+            color: green;
+        }
+
+        input[type="text"] {
+            width: 70%;
+            padding: 8px;
+        }
+
+        button {
+            padding: 8px 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h2>IM Chatbot </h2>  
+
+        <div id="chatbox"></div>
+        <input type="text" id="userInput" placeholder="Type your message..." />
+        <button onclick="sendMessage()">Send</button>
+
+        <!-- Controls Square Box -->
+        <div class="controls-container">
+            <div class="controls">
+
+                <label style="font-weight: bold;">🎤 Voice:
+                    <select id="voiceSelect"></select>
+                </label>
+                
+                <label style="font-weight: bold;">🔊 Pitch:
+                    <input type="range" id="pitchControl" min="0.5" max="2" step="0.1" value="1">
+                </label>
+
+                <!-- Square box grouping Speed and Mute -->
+                <div class="square-group">
+                    <label style="font-weight: bold;">⚡ Speed:
+                        <input type="range" id="rateControl" min="0.5" max="2" step="0.1" value="1">
+                    </label>
+                    <button id="muteBtn" style="font-weight: bold;">Mute 🔇</button>
+                </div>
+
+                <div>
+                    <!-- 🌗 Dark Mode Toggle Button -->
+                    <button onclick="toggleDarkMode()" style="font-weight: bold;">Toggle Dark Mode 🌓</button>
+                </div>
+
+            </div>
+        </div>
+
+
+
+
+
+
+        <script>
+            const API_URL = "https://api-inference.huggingface.co/models/facebook/blenderbot-3B";
+            const headers = {
+                "Authorization": "Bearer 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", // your token
+                "Content-Type": "application/json"
+            };
+
+            let isMuted = false;
+            let selectedVoice = null;
+
+            const voiceSelect = document.getElementById("voiceSelect");
+            const pitchControl = document.getElementById("pitchControl");
+            const rateControl = document.getElementById("rateControl");
+            const muteBtn = document.getElementById("muteBtn");
+
+            // Load available voices
+            function loadVoices() {
+                const voices = speechSynthesis.getVoices();
+                voiceSelect.innerHTML = "";
+                voices.forEach((voice, i) => {
+                    const option = document.createElement("option");
+                    option.value = i;
+                    option.textContent = `${voice.name} (${voice.lang})`;
+                    voiceSelect.appendChild(option);
+                });
+
+                selectedVoice = voices[0]; // default
+                voiceSelect.onchange = () => {
+                    selectedVoice = voices[voiceSelect.value];
+                };
+            }
+
+            speechSynthesis.onvoiceschanged = loadVoices;
+
+            muteBtn.onclick = () => {
+                isMuted = !isMuted;
+                muteBtn.textContent = isMuted ? "🔊 Unmute" : "🔇 Mute";
+            };
+
+
+
+
+            async function sendMessage() {
+                const userInputElem = document.getElementById("userInput");
+                const userInput = userInputElem.value.trim();
+                if (!userInput) return;
+
+                const chatbox = document.getElementById("chatbox");
+                chatbox.innerHTML += `<div class="message user"><strong>You:</strong> ${userInput}</div>`;
+                userInputElem.value = "";
+
+                try {
+                    const response = await fetch(API_URL, {
+                        method: "POST",
+                        headers,
+                        body: JSON.stringify({ inputs: userInput })
+                    });
+
+                    const data = await response.json();
+                    console.log(data); // for debugging
+
+                    if (data.error && data.error.includes("loading")) {
+                        chatbox.innerHTML += `<div class="message bot"><strong>Bot:</strong> Model is loading, please wait a few seconds and try again.</div>`;
+                    } else if (Array.isArray(data) && data[0].generated_text) {
+                        const botReply = data[0].generated_text;
+                        chatbox.innerHTML += `<div class="message bot"><strong>Bot:</strong> ${botReply}</div>`;
+
+                        // 🔊 Speak the reply
+                        if (!isMuted && 'speechSynthesis' in window) {
+                            const utterance = new SpeechSynthesisUtterance(botReply);
+                            utterance.voice = selectedVoice;
+                            utterance.pitch = parseFloat(pitchControl.value);
+                            utterance.rate = parseFloat(rateControl.value);
+                            speechSynthesis.speak(utterance);
+                        }
+                    } else {
+                        chatbox.innerHTML += `<div class="message bot"><strong>Bot:</strong> Sorry, I couldn't understand that.</div>`;
+                    }
+
+                    chatbox.scrollTop = chatbox.scrollHeight;
+
+                } catch (error) {
+                    console.error("Fetch error:", error);
+                    chatbox.innerHTML += `<div class="message bot"><strong>Bot:</strong> Error: ${error.message}</div>`;
+                }
+            }
+
+            // 🌙 Dark Mode Toggle Function
+            function toggleDarkMode() {
+                document.body.classList.toggle('dark-mode');
+            }
+        </script>
+
+</body>
+
+</html>
